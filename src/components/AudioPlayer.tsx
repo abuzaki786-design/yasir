@@ -1,5 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Volume2, VolumeX, Download, Check, Sparkles, FastForward } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Download,
+  Check,
+  Sparkles,
+  FastForward,
+  Music,
+  FileAudio,
+} from 'lucide-react';
+import { base64WavToMp3Blob } from '../utils/audioConverter.ts';
 
 interface AudioPlayerProps {
   audioBase64: string;
@@ -23,7 +36,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [volume, setVolume] = useState<number>(1);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
-  const [isCopied, setIsCopied] = useState<boolean>(false);
+  const [downloadedFormat, setDownloadedFormat] = useState<'wav' | 'mp3' | null>(null);
+  const [isConvertingMp3, setIsConvertingMp3] = useState<boolean>(false);
   const [audioUrl, setAudioUrl] = useState<string>('');
 
   useEffect(() => {
@@ -128,8 +142,33 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2500);
+    setDownloadedFormat('wav');
+    setTimeout(() => setDownloadedFormat(null), 2500);
+  };
+
+  const downloadMp3 = () => {
+    if (!audioBase64) return;
+    setIsConvertingMp3(true);
+    try {
+      const mp3Blob = base64WavToMp3Blob(audioBase64);
+      const url = URL.createObjectURL(mp3Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      a.download = `voice-${voiceName || 'audio'}-${timestamp}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setDownloadedFormat('mp3');
+      setTimeout(() => setDownloadedFormat(null), 2500);
+    } catch (err) {
+      console.error('Failed to convert to MP3:', err);
+      // Fallback: trigger WAV download if MP3 fails
+      downloadWav();
+    } finally {
+      setIsConvertingMp3(false);
+    }
   };
 
   const formatTime = (secs: number) => {
@@ -146,9 +185,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header inside player */}
-      <div className="flex items-center justify-between gap-3 mb-4 relative z-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 relative z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
             <Sparkles className="w-5 h-5 animate-pulse" />
           </div>
           <div>
@@ -161,35 +200,64 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               )}
             </h4>
             <p className="text-xs text-slate-400 font-mono">
-              24kHz • 16-bit Mono WAV • High Fidelity
+              24kHz • 16-bit Mono WAV & 128kbps MP3 • High Fidelity
             </p>
           </div>
         </div>
 
-        <button
-          onClick={downloadWav}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-colors shadow-sm"
-          title="ڈاؤن لوڈ کریں (.WAV)"
-        >
-          {isCopied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>ڈاؤن لوڈ مکمل!</span>
-            </>
-          ) : (
-            <>
-              <Download className="w-3.5 h-3.5" />
-              <span>ڈاؤن لوڈ کریں (WAV)</span>
-            </>
-          )}
-        </button>
+        {/* Dual Format Download Buttons: MP3 and WAV */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {/* MP3 Download Button */}
+          <button
+            onClick={downloadMp3}
+            disabled={isConvertingMp3}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-400/20 hover:from-amber-500/30 hover:to-amber-400/30 text-amber-300 border border-amber-500/40 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            title="ایم پی تھری (MP3) فارمیٹ میں ڈاؤن لوڈ کریں"
+          >
+            {isConvertingMp3 ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                <span>تیار ہو رہا ہے...</span>
+              </>
+            ) : downloadedFormat === 'mp3' ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>MP3 ڈاؤن لوڈ ہو گئی!</span>
+              </>
+            ) : (
+              <>
+                <Music className="w-3.5 h-3.5 text-amber-400" />
+                <span>ڈاؤن لوڈ MP3</span>
+              </>
+            )}
+          </button>
+
+          {/* WAV Download Button */}
+          <button
+            onClick={downloadWav}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-colors shadow-sm cursor-pointer"
+            title="اصل ڈبلیو اے وی (WAV) فارمیٹ میں ڈاؤن لوڈ کریں"
+          >
+            {downloadedFormat === 'wav' ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>WAV ڈاؤن لوڈ ہو گئی!</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>ڈاؤن لوڈ WAV</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Simulated Live Audio Waveform Bars */}
       <div className="h-16 flex items-center justify-center gap-1 bg-slate-950/60 rounded-xl p-3 mb-4 border border-slate-800">
         {[
           18, 35, 24, 48, 60, 30, 80, 50, 95, 40, 70, 85, 45, 65, 30, 90, 55, 35, 75, 45, 20, 60,
-          85, 40, 65, 90, 50, 30, 70, 45, 80, 25, 60, 35, 50, 20
+          85, 40, 65, 90, 50, 30, 70, 45, 80, 25, 60, 35, 50, 20,
         ].map((height, i) => {
           const progressPercent = duration ? (currentTime / duration) * 100 : 0;
           const barPercent = (i / 36) * 100;
@@ -208,7 +276,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   : 'bg-slate-800'
               }`}
               style={{
-                height: isPlaying ? `${Math.max(8, height * (0.6 + Math.random() * 0.5))}%` : `${Math.max(15, height * 0.6)}%`,
+                height: isPlaying
+                  ? `${Math.max(8, height * (0.6 + Math.random() * 0.5))}%`
+                  : `${Math.max(15, height * 0.6)}%`,
               }}
             />
           );

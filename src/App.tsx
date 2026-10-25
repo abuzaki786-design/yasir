@@ -36,12 +36,14 @@ import {
   MessageCircle,
   X,
   Info,
+  Music,
 } from 'lucide-react';
 import { AudioPlayer } from './components/AudioPlayer.tsx';
 import { VoiceSelector } from './components/VoiceSelector.tsx';
 import { DualSpeakerStudio } from './components/DualSpeakerStudio.tsx';
 import { LanguageAccentSelector } from './components/LanguageAccentSelector.tsx';
 import { SAMPLE_TEMPLATES, VOCAL_BURSTS } from './data/templates.ts';
+import { base64WavToMp3Blob } from './utils/audioConverter.ts';
 import {
   SUPPORTED_LANGUAGES,
   LanguageOption,
@@ -310,6 +312,45 @@ export default function App() {
     navigator.clipboard.writeText(text);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
+  };
+
+  const handleDownloadHistoryWav = (item: GenerationHistoryItem) => {
+    try {
+      const byteCharacters = atob(item.audioBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `voice-${item.voiceName || 'audio'}-${item.id}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      console.error('Download WAV error:', e);
+    }
+  };
+
+  const handleDownloadHistoryMp3 = (item: GenerationHistoryItem) => {
+    try {
+      const mp3Blob = base64WavToMp3Blob(item.audioBase64);
+      const url = URL.createObjectURL(mp3Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `voice-${item.voiceName || 'audio'}-${item.id}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      console.error('Download MP3 error:', e);
+      handleDownloadHistoryWav(item);
+    }
   };
 
   return (
@@ -1001,7 +1042,7 @@ export default function App() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -1014,10 +1055,31 @@ export default function App() {
                           });
                           window.scrollTo({ top: 120, behavior: 'smooth' });
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
+                        title={isUrdu ? 'سنیں' : 'Play'}
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
                         <span>{isUrdu ? 'چلائیں' : 'Play'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadHistoryMp3(item)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs border border-amber-500/30 transition-colors cursor-pointer font-medium"
+                        title="MP3 فارمیٹ میں ڈاؤن لوڈ کریں"
+                      >
+                        <Music className="w-3 h-3 text-amber-400" />
+                        <span>MP3</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadHistoryWav(item)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs border border-emerald-500/30 transition-colors cursor-pointer font-medium"
+                        title="WAV فارمیٹ میں ڈاؤن لوڈ کریں"
+                      >
+                        <Download className="w-3 h-3 text-emerald-400" />
+                        <span>WAV</span>
                       </button>
 
                       <button
@@ -1029,9 +1091,10 @@ export default function App() {
                           }
                           setActiveTab('single');
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition-colors cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition-colors cursor-pointer"
+                        title={isUrdu ? 'ایڈیٹر میں لوڈ کریں' : 'Edit Script'}
                       >
-                        {isUrdu ? 'اسکرپٹ کھولیں' : 'Edit Script'}
+                        {isUrdu ? 'اسکرپٹ' : 'Edit'}
                       </button>
                     </div>
                   </div>
@@ -1210,7 +1273,7 @@ export default function App() {
             <span>جامعہ دارالعلوم حقانیہ اکوڑہ خٹک</span>
           </div>
           <div>
-            <span>WAV 24kHz Audio Output • Gemini 3.8 TTS</span>
+            <span>WAV 24kHz & MP3 128kbps Audio Output • Gemini 3.8 TTS</span>
           </div>
         </div>
       </footer>
