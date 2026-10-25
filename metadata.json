@@ -1,0 +1,8 @@
+{
+  "name": "صوت AI - Voice Studio",
+  "description": "Generate ultra-realistic Urdu and multilingual AI voice and speech using Gemini TTS models.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
